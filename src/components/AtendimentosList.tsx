@@ -1,3 +1,5 @@
+// Arquivo: src/components/AtendimentosList.tsx
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Atendimento } from "@/types/atendimento";
@@ -8,7 +10,10 @@ interface AtendimentosListProps {
   atendimentos: Atendimento[];
 }
 
+// --- AQUI ESTÁ A CORREÇÃO ---
+// Note a palavra "export" antes de "const". Ela é obrigatória.
 export const AtendimentosList = ({ atendimentos }: AtendimentosListProps) => {
+
   const getParaQuemLabel = (atendimento: Atendimento) => {
     if (!atendimento.certificadoEmitido) return "-";
     
@@ -16,10 +21,14 @@ export const AtendimentosList = ({ atendimentos }: AtendimentosListProps) => {
       case 'parceiro': return 'Parceiro';
       case 'dimas': return 'Dimas';
       case 'outros': {
+        // Verifica se existe tipoOutros antes de tentar ler
+        if (!atendimento.tipoOutros) return atendimento.quemOutros || 'Outros';
+
         const tipo = atendimento.tipoOutros === 'agr_indisponivel' ? 'AGR indisponível' :
                      atendimento.tipoOutros === 'emissao_interna' ? 'Emissão interna' :
                      'Cliente final';
-        return `${atendimento.quemOutros} (${tipo})`;
+        // Se tiver nome (quemOutros), mostra. Se não, mostra só Outros.
+        return atendimento.quemOutros ? `${atendimento.quemOutros} (${tipo})` : `Outros (${tipo})`;
       }
       default: return '-';
     }
@@ -68,7 +77,7 @@ export const AtendimentosList = ({ atendimentos }: AtendimentosListProps) => {
                     {atendimentos.length - index}
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    {format(atendimento.timestamp, "HH:mm", { locale: ptBR })}
+                    {format(new Date(atendimento.timestamp), "HH:mm", { locale: ptBR })}
                   </span>
                 </div>
                 <Badge 
