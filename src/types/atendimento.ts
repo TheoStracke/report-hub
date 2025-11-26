@@ -10,8 +10,9 @@ export interface Atendimento {
   
   // Se certificado não emitido
   motivoNaoEmitido?: 'desistencia' | 'match_biometrico';
-  
-  // Campos comuns
+}
+
+export interface DadosRelatorio {
   dificuldades: boolean;
   justificativaDificuldades?: string;
   emissaoDiaSeguinte: boolean;

@@ -1,13 +1,10 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Atendimento } from "@/types/atendimento";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
 
 interface AtendimentoFormProps {
   onAddAtendimento: (atendimento: Atendimento) => void;
@@ -19,10 +16,47 @@ export const AtendimentoForm = ({ onAddAtendimento }: AtendimentoFormProps) => {
   const [quemOutros, setQuemOutros] = useState("");
   const [tipoOutros, setTipoOutros] = useState<'agr_indisponivel' | 'emissao_interna' | 'cliente_final' | null>(null);
   const [motivoNaoEmitido, setMotivoNaoEmitido] = useState<'desistencia' | 'match_biometrico' | null>(null);
-  const [dificuldades, setDificuldades] = useState<boolean | null>(null);
-  const [justificativaDificuldades, setJustificativaDificuldades] = useState("");
-  const [emissaoDiaSeguinte, setEmissaoDiaSeguinte] = useState<boolean | null>(null);
-  const [quantidadeProximoDia, setQuantidadeProximoDia] = useState("");
+
+  // Registrar automaticamente quando tiver informação completa
+  useEffect(() => {
+    if (certificadoEmitido === null) return;
+
+    // Se emitido, precisa ter "para quem"
+    if (certificadoEmitido) {
+      if (!paraQuem) return;
+      
+      // Se for "outros", precisa ter nome e tipo
+      if (paraQuem === 'outros' && (!quemOutros.trim() || !tipoOutros)) return;
+
+      // Tudo preenchido, registrar
+      const novoAtendimento: Atendimento = {
+        id: crypto.randomUUID(),
+        timestamp: new Date(),
+        certificadoEmitido: true,
+        paraQuem,
+        quemOutros: paraQuem === 'outros' ? quemOutros : undefined,
+        tipoOutros: paraQuem === 'outros' ? tipoOutros! : undefined,
+      };
+
+      onAddAtendimento(novoAtendimento);
+      toast.success("Atendimento registrado automaticamente!");
+      resetForm();
+    } else {
+      // Se não emitido, precisa ter motivo
+      if (!motivoNaoEmitido) return;
+
+      const novoAtendimento: Atendimento = {
+        id: crypto.randomUUID(),
+        timestamp: new Date(),
+        certificadoEmitido: false,
+        motivoNaoEmitido,
+      };
+
+      onAddAtendimento(novoAtendimento);
+      toast.success("Atendimento registrado automaticamente!");
+      resetForm();
+    }
+  }, [certificadoEmitido, paraQuem, quemOutros, tipoOutros, motivoNaoEmitido]);
 
   const resetForm = () => {
     setCertificadoEmitido(null);
@@ -30,62 +64,6 @@ export const AtendimentoForm = ({ onAddAtendimento }: AtendimentoFormProps) => {
     setQuemOutros("");
     setTipoOutros(null);
     setMotivoNaoEmitido(null);
-    setDificuldades(null);
-    setJustificativaDificuldades("");
-    setEmissaoDiaSeguinte(null);
-    setQuantidadeProximoDia("");
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (certificadoEmitido === null || dificuldades === null || emissaoDiaSeguinte === null) {
-      toast.error("Preencha todos os campos obrigatórios");
-      return;
-    }
-
-    if (certificadoEmitido && !paraQuem) {
-      toast.error("Selecione para quem foi emitido");
-      return;
-    }
-
-    if (paraQuem === 'outros' && (!quemOutros || !tipoOutros)) {
-      toast.error("Preencha os campos de 'Outros'");
-      return;
-    }
-
-    if (!certificadoEmitido && !motivoNaoEmitido) {
-      toast.error("Selecione o motivo da não emissão");
-      return;
-    }
-
-    if (dificuldades && !justificativaDificuldades.trim()) {
-      toast.error("Justifique as dificuldades");
-      return;
-    }
-
-    if (emissaoDiaSeguinte && (!quantidadeProximoDia || parseInt(quantidadeProximoDia) <= 0)) {
-      toast.error("Informe a quantidade para o dia seguinte");
-      return;
-    }
-
-    const novoAtendimento: Atendimento = {
-      id: crypto.randomUUID(),
-      timestamp: new Date(),
-      certificadoEmitido,
-      paraQuem: certificadoEmitido ? paraQuem! : undefined,
-      quemOutros: paraQuem === 'outros' ? quemOutros : undefined,
-      tipoOutros: paraQuem === 'outros' ? tipoOutros! : undefined,
-      motivoNaoEmitido: !certificadoEmitido ? motivoNaoEmitido! : undefined,
-      dificuldades,
-      justificativaDificuldades: dificuldades ? justificativaDificuldades : undefined,
-      emissaoDiaSeguinte,
-      quantidadeProximoDia: emissaoDiaSeguinte ? parseInt(quantidadeProximoDia) : undefined,
-    };
-
-    onAddAtendimento(novoAtendimento);
-    resetForm();
-    toast.success("Atendimento registrado com sucesso!");
   };
 
   return (
@@ -95,11 +73,11 @@ export const AtendimentoForm = ({ onAddAtendimento }: AtendimentoFormProps) => {
           Registrar Atendimento
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Preencha as informações do atendimento realizado
+          Selecione as opções - o registro acontece automaticamente
         </p>
       </CardHeader>
       <CardContent className="px-8 pb-8">
-        <form onSubmit={handleSubmit} className="space-y-10">
+        <div className="space-y-10">
           {/* Seção 1: Certificado Emitido */}
           <div className="space-y-6">
             <div className="flex items-center gap-3 mb-4">
@@ -288,135 +266,7 @@ export const AtendimentoForm = ({ onAddAtendimento }: AtendimentoFormProps) => {
               </div>
             )}
           </div>
-
-          {/* Seção 2: Dificuldades */}
-          <div className="space-y-6 pt-6 border-t border-border/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                2
-              </div>
-              <h3 className="text-xl font-semibold text-foreground">
-                Dificuldades?
-              </h3>
-            </div>
-
-            <RadioGroup 
-              value={dificuldades?.toString()} 
-              onValueChange={(v) => {
-                setDificuldades(v === "true");
-                if (v === "false") setJustificativaDificuldades("");
-              }}
-              className="space-y-3 pl-11"
-            >
-              <label 
-                htmlFor="dif-sim" 
-                className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-accent/30 cursor-pointer transition-all duration-200 group"
-              >
-                <RadioGroupItem value="true" id="dif-sim" className="mt-0" />
-                <span className="text-base font-medium group-hover:text-primary transition-colors">
-                  Sim
-                </span>
-              </label>
-              <label 
-                htmlFor="dif-nao" 
-                className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-accent/30 cursor-pointer transition-all duration-200 group"
-              >
-                <RadioGroupItem value="false" id="dif-nao" className="mt-0" />
-                <span className="text-base font-medium group-hover:text-primary transition-colors">
-                  Não
-                </span>
-              </label>
-            </RadioGroup>
-
-            {dificuldades === true && (
-              <div className="pl-11 animate-fade-in">
-                <div className="bg-accent/20 rounded-2xl p-6 space-y-3 border border-border/50">
-                  <Label htmlFor="justificativa" className="text-base font-semibold text-foreground">
-                    Justifique as dificuldades
-                  </Label>
-                  <Textarea 
-                    id="justificativa"
-                    value={justificativaDificuldades}
-                    onChange={(e) => setJustificativaDificuldades(e.target.value)}
-                    placeholder="Descreva detalhadamente as dificuldades encontradas..."
-                    className="min-h-[120px] text-base border-2 focus:border-primary transition-colors resize-none"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Seção 3: Emissão dia seguinte */}
-          <div className="space-y-6 pt-6 border-t border-border/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                3
-              </div>
-              <h3 className="text-xl font-semibold text-foreground">
-                Emissão para o dia seguinte?
-              </h3>
-            </div>
-
-            <RadioGroup 
-              value={emissaoDiaSeguinte?.toString()} 
-              onValueChange={(v) => {
-                setEmissaoDiaSeguinte(v === "true");
-                if (v === "false") setQuantidadeProximoDia("");
-              }}
-              className="space-y-3 pl-11"
-            >
-              <label 
-                htmlFor="prox-sim" 
-                className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-accent/30 cursor-pointer transition-all duration-200 group"
-              >
-                <RadioGroupItem value="true" id="prox-sim" className="mt-0" />
-                <span className="text-base font-medium group-hover:text-primary transition-colors">
-                  Sim
-                </span>
-              </label>
-              <label 
-                htmlFor="prox-nao" 
-                className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-accent/30 cursor-pointer transition-all duration-200 group"
-              >
-                <RadioGroupItem value="false" id="prox-nao" className="mt-0" />
-                <span className="text-base font-medium group-hover:text-primary transition-colors">
-                  Não
-                </span>
-              </label>
-            </RadioGroup>
-
-            {emissaoDiaSeguinte === true && (
-              <div className="pl-11 animate-fade-in">
-                <div className="bg-accent/20 rounded-2xl p-6 space-y-3 border border-border/50">
-                  <Label htmlFor="quantidade" className="text-base font-semibold text-foreground">
-                    Quantas?
-                  </Label>
-                  <Input 
-                    id="quantidade"
-                    type="number"
-                    min="1"
-                    value={quantidadeProximoDia}
-                    onChange={(e) => setQuantidadeProximoDia(e.target.value)}
-                    placeholder="Digite a quantidade..."
-                    className="h-12 text-base border-2 focus:border-primary transition-colors"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Botão de submit */}
-          <div className="pt-6">
-            <Button 
-              type="submit" 
-              size="lg" 
-              className="w-full h-14 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <CheckCircle2 className="mr-2 h-5 w-5" />
-              Registrar Atendimento
-            </Button>
-          </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

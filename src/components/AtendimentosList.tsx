@@ -32,7 +32,7 @@ export const AtendimentosList = ({ atendimentos }: AtendimentosListProps) => {
 
   if (atendimentos.length === 0) {
     return (
-      <Card>
+      <Card className="shadow-lg border-0">
         <CardHeader>
           <CardTitle className="text-2xl">Atendimentos do Dia</CardTitle>
         </CardHeader>
@@ -46,60 +46,52 @@ export const AtendimentosList = ({ atendimentos }: AtendimentosListProps) => {
   }
 
   return (
-    <Card>
+    <Card className="shadow-lg border-0">
       <CardHeader>
         <CardTitle className="text-2xl">
-          Atendimentos do Dia ({atendimentos.length})
+          Atendimentos do Dia
         </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {atendimentos.length} {atendimentos.length === 1 ? 'atendimento registrado' : 'atendimentos registrados'}
+        </p>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           {atendimentos.map((atendimento, index) => (
             <div 
               key={atendimento.id}
-              className="p-4 rounded-lg border bg-card hover:shadow-md transition-shadow"
+              className="p-4 rounded-xl border-2 border-border bg-card hover:shadow-md transition-all duration-200 animate-fade-in"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">
-                    #{atendimentos.length - index}
-                  </Badge>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                    {atendimentos.length - index}
+                  </div>
                   <span className="text-sm text-muted-foreground">
                     {format(atendimento.timestamp, "HH:mm", { locale: ptBR })}
                   </span>
                 </div>
-                <Badge variant={atendimento.certificadoEmitido ? "default" : "destructive"}>
-                  {atendimento.certificadoEmitido ? "Emitido" : "Não Emitido"}
+                <Badge 
+                  variant={atendimento.certificadoEmitido ? "default" : "destructive"}
+                  className="font-medium"
+                >
+                  {atendimento.certificadoEmitido ? "✓ Emitido" : "✗ Não Emitido"}
                 </Badge>
               </div>
               
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Para quem:</span>
-                  <p className="font-medium">{getParaQuemLabel(atendimento)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Motivo (se não emitido):</span>
-                  <p className="font-medium">{getMotivoLabel(atendimento)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Dificuldades:</span>
-                  <p className="font-medium">{atendimento.dificuldades ? "Sim" : "Não"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Próximo dia:</span>
-                  <p className="font-medium">
-                    {atendimento.emissaoDiaSeguinte ? `Sim (${atendimento.quantidadeProximoDia})` : "Não"}
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                {atendimento.certificadoEmitido ? (
+                  <div className="flex items-center justify-between p-3 bg-accent/20 rounded-lg">
+                    <span className="text-muted-foreground font-medium">Para quem:</span>
+                    <span className="font-semibold">{getParaQuemLabel(atendimento)}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
+                    <span className="text-muted-foreground font-medium">Motivo:</span>
+                    <span className="font-semibold">{getMotivoLabel(atendimento)}</span>
+                  </div>
+                )}
               </div>
-
-              {atendimento.justificativaDificuldades && (
-                <div className="mt-3 p-2 bg-muted rounded text-sm">
-                  <span className="text-muted-foreground">Justificativa: </span>
-                  {atendimento.justificativaDificuldades}
-                </div>
-              )}
             </div>
           ))}
         </div>

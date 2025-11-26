@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Atendimento, ResumoAtendimentos } from "@/types/atendimento";
-import { Download, FileImage } from "lucide-react";
+import { Atendimento, ResumoAtendimentos, DadosRelatorio } from "@/types/atendimento";
+import { FileImage } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import html2canvas from "html2canvas";
 import { useRef } from "react";
 import { toast } from "sonner";
+import { RelatorioDialog } from "./RelatorioDialog";
 
 interface RelatorioPreviewProps {
   atendimentos: Atendimento[];
@@ -17,6 +19,8 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 
 export const RelatorioPreview = ({ atendimentos }: RelatorioPreviewProps) => {
   const relatorioRef = useRef<HTMLDivElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dadosRelatorio, setDadosRelatorio] = useState<DadosRelatorio | null>(null);
 
   const calcularResumo = (): ResumoAtendimentos => {
     let emissoesParceiros = 0;
@@ -24,8 +28,6 @@ export const RelatorioPreview = ({ atendimentos }: RelatorioPreviewProps) => {
     let emissoesOutros = 0;
     let desistencias = 0;
     let matchBiometrico = 0;
-    let emissoesProximoDia = 0;
-    const dificuldades: string[] = [];
 
     atendimentos.forEach(atendimento => {
       if (atendimento.certificadoEmitido) {
@@ -36,15 +38,15 @@ export const RelatorioPreview = ({ atendimentos }: RelatorioPreviewProps) => {
         if (atendimento.motivoNaoEmitido === 'desistencia') desistencias++;
         else if (atendimento.motivoNaoEmitido === 'match_biometrico') matchBiometrico++;
       }
-
-      if (atendimento.dificuldades && atendimento.justificativaDificuldades) {
-        dificuldades.push(atendimento.justificativaDificuldades);
-      }
-
-      if (atendimento.emissaoDiaSeguinte && atendimento.quantidadeProximoDia) {
-        emissoesProximoDia += atendimento.quantidadeProximoDia;
-      }
     });
+
+    const dificuldades = dadosRelatorio?.dificuldades && dadosRelatorio.justificativaDificuldades 
+      ? [dadosRelatorio.justificativaDificuldades] 
+      : [];
+
+    const emissoesProximoDia = dadosRelatorio?.emissaoDiaSeguinte && dadosRelatorio.quantidadeProximoDia
+      ? dadosRelatorio.quantidadeProximoDia
+      : 0;
 
     return {
       emissoesParceiros,
@@ -74,6 +76,24 @@ export const RelatorioPreview = ({ atendimentos }: RelatorioPreviewProps) => {
     { name: 'Próximo Dia', value: resumo.emissoesProximoDia },
   ];
 
+  const handleGerarRelatorio = () => {
+    if (atendimentos.length === 0) {
+      toast.error("Registre pelo menos um atendimento");
+      return;
+    }
+    setDialogOpen(true);
+  };
+
+  const handleConfirmarDados = async (dados: DadosRelatorio) => {
+    setDadosRelatorio(dados);
+    setDialogOpen(false);
+    
+    // Aguardar um momento para o estado atualizar
+    setTimeout(async () => {
+      await handleDownload();
+    }, 100);
+  };
+
   const handleDownload = async () => {
     if (!relatorioRef.current) return;
 
@@ -98,134 +118,138 @@ export const RelatorioPreview = ({ atendimentos }: RelatorioPreviewProps) => {
     }
   };
 
-  if (atendimentos.length === 0) {
-    return (
+  return (
+    <>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <FileImage className="h-6 w-6" />
-            Gerar Relatório
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl flex items-center gap-2 mb-2">
+                <FileImage className="h-6 w-6" />
+                Relatório Diário
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {atendimentos.length === 0 
+                  ? "Registre atendimentos para gerar o relatório" 
+                  : `${atendimentos.length} atendimento(s) registrado(s)`}
+              </p>
+            </div>
+            <Button 
+              onClick={handleGerarRelatorio}
+              size="lg"
+              disabled={atendimentos.length === 0}
+            >
+              <FileImage className="mr-2 h-4 w-4" />
+              Gerar Relatório
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-center py-8">
-            Registre pelo menos um atendimento para gerar o relatório.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <FileImage className="h-6 w-6" />
-            Gerar Relatório
-          </CardTitle>
-          <Button onClick={handleDownload} size="lg">
-            <Download className="mr-2 h-4 w-4" />
-            Baixar PNG
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div ref={relatorioRef} className="bg-background p-8 space-y-6">
-          {/* Cabeçalho */}
-          <div className="text-center border-b pb-4">
-            <h2 className="text-3xl font-bold mb-2">RELATÓRIO DE EMISSÕES</h2>
-            <p className="text-xl text-muted-foreground">
-              {format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </p>
-          </div>
+        {dadosRelatorio && atendimentos.length > 0 && (
+          <CardContent>
+            <div ref={relatorioRef} className="bg-background p-8 space-y-6">
+              {/* Cabeçalho */}
+              <div className="text-center border-b pb-4">
+                <h2 className="text-3xl font-bold mb-2">RELATÓRIO DE EMISSÕES</h2>
+                <p className="text-xl text-muted-foreground">
+                  {format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </p>
+              </div>
 
-          {/* Quantitativos */}
-          <div className="space-y-3">
-            <h3 className="text-xl font-semibold mb-4">📊 Quantitativos</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Emissões - Parceiros Indicadores</p>
-                <p className="text-3xl font-bold">{resumo.emissoesParceiros}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Emissões - Dimas</p>
-                <p className="text-3xl font-bold">{resumo.emissoesDimas}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Emissões - Outros</p>
-                <p className="text-3xl font-bold">{resumo.emissoesOutros}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Desistências</p>
-                <p className="text-3xl font-bold">{resumo.desistencias}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Match Biométrico</p>
-                <p className="text-3xl font-bold">{resumo.matchBiometrico}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Emissões Próximo Dia</p>
-                <p className="text-3xl font-bold">{resumo.emissoesProximoDia}</p>
-              </div>
-            </div>
+              {/* Quantitativos */}
+              <div className="space-y-3">
+                <h3 className="text-xl font-semibold mb-4">📊 Quantitativos</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Emissões - Parceiros Indicadores</p>
+                    <p className="text-3xl font-bold">{resumo.emissoesParceiros}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Emissões - Dimas</p>
+                    <p className="text-3xl font-bold">{resumo.emissoesDimas}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Emissões - Outros</p>
+                    <p className="text-3xl font-bold">{resumo.emissoesOutros}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Desistências</p>
+                    <p className="text-3xl font-bold">{resumo.desistencias}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Match Biométrico</p>
+                    <p className="text-3xl font-bold">{resumo.matchBiometrico}</p>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Emissões Próximo Dia</p>
+                    <p className="text-3xl font-bold">{resumo.emissoesProximoDia}</p>
+                  </div>
+                </div>
 
-            <div className="mt-6 p-4 bg-primary text-primary-foreground rounded-lg text-center">
-              <p className="text-lg font-semibold">TOTAL DE EMISSÕES</p>
-              <p className="text-5xl font-bold">{resumo.totalEmissoes}</p>
-            </div>
-          </div>
+                <div className="mt-6 p-4 bg-primary text-primary-foreground rounded-lg text-center">
+                  <p className="text-lg font-semibold">TOTAL DE EMISSÕES</p>
+                  <p className="text-5xl font-bold">{resumo.totalEmissoes}</p>
+                </div>
+              </div>
 
-          {/* Dificuldades */}
-          {resumo.dificuldades.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold">⚠️ Dificuldades</h3>
-              <ul className="list-disc list-inside space-y-1">
-                {resumo.dificuldades.map((dif, idx) => (
-                  <li key={idx} className="text-sm">{dif}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Gráficos */}
-          <div className="grid grid-cols-2 gap-6 mt-6">
-            <div>
-              <h3 className="text-center font-semibold mb-2">Distribuição</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={dadosGraficoPizza}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {dadosGraficoPizza.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              {/* Dificuldades */}
+              {resumo.dificuldades.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold">⚠️ Dificuldades</h3>
+                  <ul className="list-disc list-inside space-y-1">
+                    {resumo.dificuldades.map((dif, idx) => (
+                      <li key={idx} className="text-sm">{dif}</li>
                     ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+                  </ul>
+                </div>
+              )}
 
-            <div>
-              <h3 className="text-center font-semibold mb-2">Comparativo</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={dadosGraficoBarras}>
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" />
-                </BarChart>
-              </ResponsiveContainer>
+              {/* Gráficos */}
+              <div className="grid grid-cols-2 gap-6 mt-6">
+                <div>
+                  <h3 className="text-center font-semibold mb-2">Distribuição</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={dadosGraficoPizza}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {dadosGraficoPizza.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div>
+                  <h3 className="text-center font-semibold mb-2">Comparativo</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={dadosGraficoBarras}>
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        )}
+      </Card>
+
+      <RelatorioDialog 
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onConfirm={handleConfirmarDados}
+      />
+    </>
   );
 };
