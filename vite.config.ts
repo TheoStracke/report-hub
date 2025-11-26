@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/report-hub/", // ADD THIS LINE (replace 'report-hub' with your actual repo name)
   server: {
     host: "::",
     port: 8080,
